@@ -1,0 +1,44 @@
+name: GeoStampCam
+options:
+  bundleIdPrefix: com.yourname
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  GeoStampCam:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes:
+          - README.md
+          - SIDELOADLY_GUIDE.md
+          - project.yml
+          - Info.plist
+          - ".github/**"
+          - "*.xcodeproj/**"
+          - build/**
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: GeoStamp Cam
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: GeoStamp Cam uses the camera to take photos with your location and time stamped on them.
+        NSMicrophoneUsageDescription: GeoStamp Cam uses the microphone only when you record a video with sound.
+        NSLocationWhenInUseUsageDescription: GeoStamp Cam uses your location to stamp coordinates, address, altitude and compass direction on your photos.
+        NSPhotoLibraryAddUsageDescription: GeoStamp Cam saves your stamped photos to your Photos library.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.geostampcam
+        INFOPLIST_FILE: Info.plist
+        ENABLE_PREVIEWS: YES
