@@ -245,6 +245,14 @@ struct CameraScreen: View {
 
             Spacer()
 
+            Button { tab = 2 } label: {
+                Image(systemName: "gearshape.fill")
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+            }
+
+            Spacer()
+
             if vm.camera.mode == .photo {
                 Button { settings.cfg.aspect = cfg.aspect.next } label: {
                     Text(cfg.aspect.title)
@@ -285,24 +293,30 @@ struct CameraScreen: View {
             }
         }
         .padding(.top, 10)
-        .padding(.bottom, bottomInset + 6)
+        .padding(.bottom, max(bottomInset, 16) + 6)
         .background(
             LinearGradient(colors: [Color.clear, Color.black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
         )
     }
 
     private var modeSwitch: some View {
-        HStack(spacing: 26) {
+        HStack(spacing: 4) {
             modeButton("PHOTO", .photo)
             modeButton("VIDEO", .video)
         }
+        .padding(3)
+        .background(Capsule().fill(Color.black.opacity(0.45)))
     }
 
     private func modeButton(_ title: String, _ m: CaptureMode) -> some View {
-        Button { vm.setMode(m) } label: {
+        let selected = vm.camera.mode == m
+        return Button { vm.setMode(m) } label: {
             Text(title)
-                .font(.system(size: 13, weight: .heavy))
-                .foregroundColor(vm.camera.mode == m ? Color.yellow : Color.white.opacity(0.8))
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundColor(selected ? Color.black : Color.white.opacity(0.85))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(selected ? Color.yellow : Color.clear))
         }
     }
 
@@ -356,7 +370,13 @@ struct CameraScreen: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.6), lineWidth: 1))
             }
         } else {
-            Color.clear.frame(width: 48, height: 48)
+            Button { tab = 1 } label: {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+                    .frame(width: 48, height: 48)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.15)))
+            }
         }
     }
 
