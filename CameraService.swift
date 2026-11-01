@@ -198,7 +198,18 @@ final class CameraService: NSObject, ObservableObject, AVCapturePhotoCaptureDele
 
     // MARK: Recording
 
-    func startRecording(url: URL, bitrate: Int) {
+    /// Orientation a new video will use: follows how the phone is held.
+    func recordingOrientation() -> AVCaptureVideoOrientation {
+        currentVideoOrientation(lockPortrait: false)
+    }
+
+    func startRecording(url: URL, bitrate: Int, orientation: AVCaptureVideoOrientation) {
+        // Must be set before the first frame so the writer sees the right frame size.
+        queue.sync {
+            if let c = self.videoOutput.connection(with: .video), c.isVideoOrientationSupported {
+                c.videoOrientation = orientation
+            }
+        }
         recorder.start(url: url, withAudio: micActive, bitrate: bitrate)
         isRecording = true
     }

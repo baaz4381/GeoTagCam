@@ -29,6 +29,8 @@ final class CameraViewModel: ObservableObject {
     private var clockTask: Task<Void, Never>?
     private var recordTask: Task<Void, Never>?
     private var recordSnapshot: CaptureSnapshot?
+    private var cameraVisible = false
+    private var recordLandscape = false
 
     private static let serialKey = "geostamp.serial"
 
@@ -43,9 +45,17 @@ final class CameraViewModel: ObservableObject {
             mapService.objectWillChange, timeVerifier.objectWillChange,
             settings.objectWillChange, store.objectWillChange
         ]
-        for p in forwards {
-            p.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
-        }
+        // Throttled so fast sensors (compass, GPS, zoom) cannot flood SwiftUI,
+        // and silent while Gallery or Settings is open.
+        Publishers.MergeMany(forwards)
+            .throttle(for: .milliseconds(200), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.cameraVisible else { return }
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &cancellables)
 
         // Refresh map and weather as the user moves.
         location.$location
@@ -73,6 +83,7 @@ final class CameraViewModel: ObservableObject {
     // MARK: Lifecycle
 
     func start() {
+        cameraVisible = true
         UIApplication.shared.isIdleTimerDisabled = true
         timeVerifier.useVerified = settings.cfg.useVerifiedTime
         location.start()
@@ -92,6 +103,7 @@ final class CameraViewModel: ObservableObject {
     }
 
     func stop() {
+        cameraVisible = false
         UIApplication.shared.isIdleTimerDisabled = false
         stopRecordingIfNeeded()
         camera.stop()
@@ -332,7 +344,9 @@ final class CameraViewModel: ObservableObject {
         live.phase = base.phase
         base = live
         let content = overlayContent(base)
-        camera.recorder.setOverlay(StampRenderer.overlay(size: cfg.videoQuality.frameSize, content: content, cfg: cfg))
+        let portrait = cfg.videoQuality.frameSize
+        let size = recordLandscape ? CGSize(width: portrait.height, height: portrait.width) : portrait
+        camera.recorder.setOverlay(StampRenderer.overlay(size: size, content: content, cfg: cfg))
     }
 
     private func startRecording() {
@@ -343,9 +357,11 @@ final class CameraViewModel: ObservableObject {
         start.withSeconds = true
         recordSnapshot = start
 
+        let orientation = camera.recordingOrientation()
+        recordLandscape = (orientation == .landscapeLeft || orientation == .landscapeRight)
         refreshOverlay()                                    // overlay must exist before the first frame
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
-        camera.startRecording(url: url, bitrate: cfg.videoQuality.bitrate)
+        camera.startRecording(url: url, bitrate: cfg.videoQuality.bitrate, orientation: orientation)
         recordSeconds = 0
 
         recordTask?.cancel()

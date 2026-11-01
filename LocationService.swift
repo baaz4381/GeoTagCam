@@ -17,7 +17,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 1
-        manager.headingFilter = 2
+        manager.headingFilter = 5
         manager.activityType = .other
         authorization = manager.authorizationStatus
     }

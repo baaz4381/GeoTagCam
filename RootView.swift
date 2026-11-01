@@ -1,5 +1,16 @@
 import SwiftUI
 
+struct CloseToCameraKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+extension EnvironmentValues {
+    var closeToCamera: () -> Void {
+        get { self[CloseToCameraKey.self] }
+        set { self[CloseToCameraKey.self] = newValue }
+    }
+}
+
 /// Camera is full screen with nothing on top of the shutter button.
 /// Gallery and Settings get a simple bottom bar so you can switch back.
 struct RootView: View {
@@ -18,6 +29,7 @@ struct RootView: View {
             }
         }
         .tint(.yellow)
+        .environment(\.closeToCamera, { tab = 0 })
     }
 
     private func withTabBar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

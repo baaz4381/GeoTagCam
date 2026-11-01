@@ -20,6 +20,7 @@ enum GalleryFilter: Hashable {
 struct GalleryScreen: View {
     @EnvironmentObject var store: PhotoStore
     @EnvironmentObject var vm: CameraViewModel
+    @Environment(\.closeToCamera) private var closeToCamera
 
     @State private var filter: GalleryFilter = .all
     @State private var search = ""
@@ -74,6 +75,7 @@ struct GalleryScreen: View {
             .searchable(text: $search, prompt: "Address, note or project")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarLeading) {
+                    Button { closeToCamera() } label: { Image(systemName: "camera.fill") }
                     PhotosPicker(selection: $importItems, maxSelectionCount: 20, matching: .images) {
                         Image(systemName: "plus")
                     }

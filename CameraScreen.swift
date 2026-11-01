@@ -11,44 +11,25 @@ struct CameraScreen: View {
     @State private var pinchStart: CGFloat = 1
     @State private var showNote = false
 
+    private typealias Insets = (top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat)
+    private static let topH: CGFloat = 52
+
     var body: some View {
         GeometryReader { geo in
             let cfg = settings.cfg
             let videoMode = vm.camera.mode == .video
             let aspect: AspectOption = videoMode ? .r16x9 : cfg.aspect
-            let w = geo.size.width
             let ratio = aspect.portraitRatio ?? 0.75
-            let ph = w / ratio
-            let topH: CGFloat = 52
             let insets = Self.safeInsets(geo.safeAreaInsets)
-            let topInset = insets.top
-            let y0: CGFloat = aspect == .r16x9 ? 0 : topInset + topH
-            let barH: CGFloat = 170 + insets.bottom
-            let overlap = max(0, y0 + ph - (geo.size.height - barH))
+            let isLandscape = geo.size.width > geo.size.height
 
             ZStack(alignment: .top) {
                 Color.black
 
-                previewArea(width: w, height: ph, cfg: cfg, stampInset: overlap)
-                    .frame(width: w, height: ph)
-                    .offset(y: y0)
-
-                VStack(spacing: 0) {
-                    Group {
-                        if vm.camera.isRecording {
-                            recordingBar
-                        } else {
-                            topBar(cfg)
-                        }
-                    }
-                    .frame(height: topH)
-                    .padding(.top, topInset)
-                    .background(
-                        LinearGradient(colors: [Color.black.opacity(0.7), Color.clear],
-                                       startPoint: .top, endPoint: .bottom)
-                    )
-                    Spacer(minLength: 0)
-                    bottomBar(bottomInset: insets.bottom)
+                if isLandscape {
+                    landscapeLayout(geo.size, cfg: cfg, ratio: ratio, insets: insets)
+                } else {
+                    portraitLayout(geo.size, cfg: cfg, aspect: aspect, ratio: ratio, insets: insets)
                 }
 
                 if let n = vm.countdown {
@@ -69,7 +50,7 @@ struct CameraScreen: View {
                         .padding(.vertical, 9)
                         .background(Capsule().fill(Color.black.opacity(0.8)))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, topInset + topH + 8)
+                        .padding(.top, isLandscape ? 16 : insets.top + Self.topH + 8)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
@@ -87,15 +68,95 @@ struct CameraScreen: View {
         .sheet(isPresented: $showNote) { QuickNoteSheet() }
     }
 
+    // MARK: Layouts
+
+    /// Phone held upright: preview on top, controls along the bottom.
+    private func portraitLayout(_ size: CGSize, cfg: StampSettings, aspect: AspectOption,
+                                ratio: CGFloat, insets: Insets) -> some View {
+        let w = size.width
+        let ph = w / ratio
+        let y0: CGFloat = aspect == .r16x9 ? 0 : insets.top + Self.topH
+        let barH: CGFloat = 170 + insets.bottom
+        let overlap = max(0, y0 + ph - (size.height - barH))
+
+        return ZStack(alignment: .top) {
+            previewArea(width: w, height: ph, cfg: cfg, stampInset: overlap)
+                .frame(width: w, height: ph)
+                .offset(y: y0)
+
+            VStack(spacing: 0) {
+                Group {
+                    if vm.camera.isRecording {
+                        recordingBar
+                    } else {
+                        topBar(cfg)
+                    }
+                }
+                .frame(height: Self.topH)
+                .padding(.top, insets.top)
+                .background(
+                    LinearGradient(colors: [Color.black.opacity(0.7), Color.clear],
+                                   startPoint: .top, endPoint: .bottom)
+                )
+                Spacer(minLength: 0)
+                bottomBar(bottomInset: insets.bottom)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    /// Phone held sideways: preview on the left, controls in a column on the right.
+    private func landscapeLayout(_ size: CGSize, cfg: StampSettings,
+                                 ratio: CGFloat, insets: Insets) -> some View {
+        let panelW: CGFloat = 200
+        let availW = max(size.width - insets.left - insets.right - panelW, 100)
+        let availH = max(size.height - max(insets.bottom, 8) - 8, 100)
+        let wide = 1 / ratio                         // width / height when sideways
+        let pw = min(availW, availH * wide)
+        let ph = pw / wide
+
+        return HStack(spacing: 0) {
+            previewArea(width: pw, height: ph, cfg: cfg, stampInset: 0)
+                .frame(width: pw, height: ph)
+                .frame(width: availW, height: size.height)
+            landscapePanel(cfg)
+                .frame(width: panelW, height: size.height)
+        }
+        .padding(.leading, insets.left)
+        .padding(.trailing, insets.right)
+        .frame(width: size.width, height: size.height, alignment: .leading)
+    }
+
+    private func landscapePanel(_ cfg: StampSettings) -> some View {
+        VStack(spacing: 10) {
+            if vm.camera.isRecording {
+                recordingBar
+            } else {
+                HStack(spacing: 6) { flashButton; timerButton; tagButton }
+                HStack(spacing: 6) { noteButton; gearButton; aspectButton(cfg) }
+            }
+            zoomChips(size: 34, spacing: 4)
+            if !vm.camera.isRecording { modeSwitch }
+            HStack(spacing: 6) {
+                thumbButton
+                shutterButton
+                flipButton
+            }
+        }
+        .font(.system(size: 18, weight: .semibold))
+        .frame(maxHeight: .infinity)
+    }
+
     /// Real notch and home-indicator sizes. The GeometryReader above ignores the
     /// safe area, so its own insets come back as zero; read them from the window.
-    private static func safeInsets(_ proxy: EdgeInsets) -> (top: CGFloat, bottom: CGFloat) {
+    private static func safeInsets(_ proxy: EdgeInsets) -> Insets {
         let window = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
             .first { $0.isKeyWindow }
-        return (max(proxy.top, window?.safeAreaInsets.top ?? 0),
-                max(proxy.bottom, window?.safeAreaInsets.bottom ?? 0))
+        let w = window?.safeAreaInsets ?? .zero
+        return (max(proxy.top, w.top), max(proxy.bottom, w.bottom),
+                max(proxy.leading, w.left), max(proxy.trailing, w.right))
     }
 
     // MARK: Preview area
@@ -198,7 +259,7 @@ struct CameraScreen: View {
         .background(Capsule().fill(color.opacity(0.85)))
     }
 
-    // MARK: Top bar
+    // MARK: Top controls (shared by the portrait bar and the landscape panel)
 
     private var flashIcon: String {
         if vm.camera.mode == .video { return vm.camera.flashMode == .on ? "flashlight.on.fill" : "flashlight.off.fill" }
@@ -217,95 +278,101 @@ struct CameraScreen: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func topBar(_ cfg: StampSettings) -> some View {
-        HStack {
-            Button { vm.camera.cycleFlash() } label: {
-                Image(systemName: flashIcon)
-                    .foregroundColor(vm.camera.flashMode == .off ? .white : .yellow)
-                    .frame(width: 40, height: 40)
-            }
-            .opacity(vm.camera.hasFlash ? 1 : 0.35)
-            .disabled(!vm.camera.hasFlash)
+    private var flashButton: some View {
+        Button { vm.camera.cycleFlash() } label: {
+            Image(systemName: flashIcon)
+                .foregroundColor(vm.camera.flashMode == .off ? .white : .yellow)
+                .frame(width: 40, height: 40)
+        }
+        .opacity(vm.camera.hasFlash ? 1 : 0.35)
+        .disabled(!vm.camera.hasFlash)
+    }
 
-            Spacer()
-
-            Button { vm.cycleTimer() } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "timer")
-                    if vm.timerSeconds > 0 {
-                        Text("\(vm.timerSeconds)s").font(.system(size: 13, weight: .bold))
-                    }
+    private var timerButton: some View {
+        Button { vm.cycleTimer() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "timer")
+                if vm.timerSeconds > 0 {
+                    Text("\(vm.timerSeconds)s").font(.system(size: 13, weight: .bold))
                 }
-                .foregroundColor(vm.timerSeconds > 0 ? .yellow : .white)
-                .frame(minWidth: 40, minHeight: 40)
             }
+            .foregroundColor(vm.timerSeconds > 0 ? .yellow : .white)
+            .frame(minWidth: 40, minHeight: 40)
+        }
+    }
 
-            Spacer()
+    private var tagButton: some View {
+        Button { vm.cyclePhase() } label: {
+            Text(vm.phase.isEmpty ? "Tag" : vm.phase)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(vm.phase.isEmpty ? .white : .black)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(vm.phase.isEmpty ? Color.white.opacity(0.2) : Color.yellow))
+        }
+    }
 
-            Button { vm.cyclePhase() } label: {
-                Text(vm.phase.isEmpty ? "Tag" : vm.phase)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(vm.phase.isEmpty ? .white : .black)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(vm.phase.isEmpty ? Color.white.opacity(0.2) : Color.yellow))
-            }
+    private var noteButton: some View {
+        Button { showNote = true } label: {
+            Image(systemName: "square.and.pencil")
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+        }
+    }
 
-            Spacer()
+    private var gearButton: some View {
+        Button { tab = 2 } label: {
+            Image(systemName: "gearshape.fill")
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+        }
+    }
 
-            Button { showNote = true } label: {
-                Image(systemName: "square.and.pencil")
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-            }
-
-            Spacer()
-
-            Button { tab = 2 } label: {
-                Image(systemName: "gearshape.fill")
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-            }
-
-            Spacer()
-
-            if vm.camera.mode == .photo {
-                Button { settings.cfg.aspect = cfg.aspect.next } label: {
-                    Text(cfg.aspect.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(minWidth: 40, minHeight: 40)
-                }
-            } else {
-                Text(cfg.videoQuality.title)
+    @ViewBuilder
+    private func aspectButton(_ cfg: StampSettings) -> some View {
+        if vm.camera.mode == .photo {
+            Button { settings.cfg.aspect = cfg.aspect.next } label: {
+                Text(cfg.aspect.title)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white)
                     .frame(minWidth: 40, minHeight: 40)
             }
+        } else {
+            Text(cfg.videoQuality.title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.white)
+                .frame(minWidth: 40, minHeight: 40)
+        }
+    }
+
+    private func topBar(_ cfg: StampSettings) -> some View {
+        HStack {
+            flashButton
+            Spacer()
+            timerButton
+            Spacer()
+            tagButton
+            Spacer()
+            noteButton
+            Spacer()
+            gearButton
+            Spacer()
+            aspectButton(cfg)
         }
         .font(.system(size: 18, weight: .semibold))
         .padding(.horizontal, 14)
     }
 
-    // MARK: Bottom bar
+    // MARK: Bottom controls
 
     private func bottomBar(bottomInset: CGFloat) -> some View {
         VStack(spacing: 10) {
-            zoomChips
+            zoomChips()
             if !vm.camera.isRecording { modeSwitch }
             HStack {
                 thumbButton.frame(maxWidth: .infinity)
                 shutterButton
-                Button { vm.camera.flip() } label: {
-                    Image(systemName: "camera.rotate.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.white)
-                        .frame(width: 48, height: 48)
-                        .background(Circle().fill(Color.white.opacity(0.15)))
-                }
-                .disabled(vm.camera.isRecording)
-                .opacity(vm.camera.isRecording ? 0.35 : 1)
-                .frame(maxWidth: .infinity)
+                flipButton.frame(maxWidth: .infinity)
             }
         }
         .padding(.top, 10)
@@ -313,6 +380,18 @@ struct CameraScreen: View {
         .background(
             LinearGradient(colors: [Color.clear, Color.black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
         )
+    }
+
+    private var flipButton: some View {
+        Button { vm.camera.flip() } label: {
+            Image(systemName: "camera.rotate.fill")
+                .font(.system(size: 22))
+                .foregroundColor(.white)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(Color.white.opacity(0.15)))
+        }
+        .disabled(vm.camera.isRecording)
+        .opacity(vm.camera.isRecording ? 0.35 : 1)
     }
 
     private var modeSwitch: some View {
@@ -340,15 +419,15 @@ struct CameraScreen: View {
         z < 1 ? "0.5x" : "\(Int(z))x"
     }
 
-    private var zoomChips: some View {
-        HStack(spacing: 8) {
+    private func zoomChips(size: CGFloat = 40, spacing: CGFloat = 8) -> some View {
+        HStack(spacing: spacing) {
             ForEach(vm.camera.zoomPresets, id: \.self) { z in
                 let active = abs(vm.camera.displayZoom - z) < 0.12
                 Button { vm.camera.setZoom(z) } label: {
                     Text(zoomLabel(z))
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(active ? .yellow : .white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: size, height: size)
                         .background(Circle().fill(Color.black.opacity(0.5)))
                 }
             }

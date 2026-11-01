@@ -5,6 +5,7 @@ import CoreLocation
 struct SettingsScreen: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var vm: CameraViewModel
+    @Environment(\.closeToCamera) private var closeToCamera
     @State private var logoItem: PhotosPickerItem?
     @State private var newProject = ""
     @State private var confirmReset = false
@@ -29,6 +30,11 @@ struct SettingsScreen: View {
                 aboutSection
             }
             .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { closeToCamera() } label: { Label("Camera", systemImage: "chevron.backward") }
+                }
+            }
             .onChange(of: logoItem) { item in
                 guard let item else { return }
                 Task {
@@ -169,7 +175,7 @@ struct SettingsScreen: View {
         } header: {
             Text("Extras")
         } footer: {
-            Text("The QR code opens the exact spot in a maps app. Videos are recorded upright (portrait), with the stamp updating every second. Change video quality before switching to Video mode.")
+            Text("The QR code opens the exact spot in a maps app. Videos are recorded the way you hold the phone (upright or sideways), with the stamp updating every second. Change video quality before switching to Video mode.")
         }
     }
 

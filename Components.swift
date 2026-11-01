@@ -10,6 +10,27 @@ final class PreviewView: UIView {
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     var onHardwareShutter: (() -> Void)?
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updatePreviewOrientation()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updatePreviewOrientation()
+    }
+
+    /// Keeps the live preview upright when the screen rotates.
+    private func updatePreviewOrientation() {
+        guard let c = previewLayer.connection, c.isVideoOrientationSupported else { return }
+        switch window?.windowScene?.interfaceOrientation ?? .portrait {
+        case .landscapeLeft: c.videoOrientation = .landscapeLeft
+        case .landscapeRight: c.videoOrientation = .landscapeRight
+        case .portraitUpsideDown: c.videoOrientation = .portraitUpsideDown
+        default: c.videoOrientation = .portrait
+        }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         installHardwareButton()
