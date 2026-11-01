@@ -20,9 +20,10 @@ struct CameraScreen: View {
             let ratio = aspect.portraitRatio ?? 0.75
             let ph = w / ratio
             let topH: CGFloat = 52
-            let topInset = geo.safeAreaInsets.top
+            let insets = Self.safeInsets(geo.safeAreaInsets)
+            let topInset = insets.top
             let y0: CGFloat = aspect == .r16x9 ? 0 : topInset + topH
-            let barH: CGFloat = 170 + geo.safeAreaInsets.bottom
+            let barH: CGFloat = 170 + insets.bottom
             let overlap = max(0, y0 + ph - (geo.size.height - barH))
 
             ZStack(alignment: .top) {
@@ -42,8 +43,12 @@ struct CameraScreen: View {
                     }
                     .frame(height: topH)
                     .padding(.top, topInset)
+                    .background(
+                        LinearGradient(colors: [Color.black.opacity(0.7), Color.clear],
+                                       startPoint: .top, endPoint: .bottom)
+                    )
                     Spacer(minLength: 0)
-                    bottomBar(bottomInset: geo.safeAreaInsets.bottom)
+                    bottomBar(bottomInset: insets.bottom)
                 }
 
                 if let n = vm.countdown {
@@ -80,6 +85,17 @@ struct CameraScreen: View {
             if phase != .active { vm.stopRecordingIfNeeded() }
         }
         .sheet(isPresented: $showNote) { QuickNoteSheet() }
+    }
+
+    /// Real notch and home-indicator sizes. The GeometryReader above ignores the
+    /// safe area, so its own insets come back as zero; read them from the window.
+    private static func safeInsets(_ proxy: EdgeInsets) -> (top: CGFloat, bottom: CGFloat) {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+        return (max(proxy.top, window?.safeAreaInsets.top ?? 0),
+                max(proxy.bottom, window?.safeAreaInsets.bottom ?? 0))
     }
 
     // MARK: Preview area
